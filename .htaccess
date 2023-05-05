@@ -1,0 +1,20 @@
+# Remove the question mark from the request but maintain the query 
+# Comment this line in production
+RewriteEngine On
+
+# Uncomment the following line if your public folder isn't the web server's root
+# RewriteBase /
+
+# Comment this lines in production
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-l
+RewriteRule ^(.*)$ index.php?$1 [L,QSA]
+
+# Uncomment the following lines in production
+# <IfModule mod_rewrite.c>
+# RewriteEngine On
+# RewriteBase /
+# RewriteCond %{REQUEST_URI} !/public
+# RewriteRule ^(.*)$ public/$1
+# </IfModule>

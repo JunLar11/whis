@@ -1,0 +1,20 @@
+{
+    "name": "junlar11/whis",
+    "description": "A new PHP MVC framework intended for use on any hosting. It can be shared hosting, VPS or a Server.",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "App\\": "./app"
+        }
+    },
+    "authors": [
+        {
+            "name": "Juan Larios",
+            "email": "juanjosedejesuslarios@gmail.com"
+        }
+    ],
+    "require": {
+        "junlar11/whis-core": "^0.1.0"
+    }
+}
