@@ -1,4 +1,6 @@
 /vendor/
 composer.lock
 /logs/
+/node_modules/
+package-lock.json
 ```

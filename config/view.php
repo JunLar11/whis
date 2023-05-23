@@ -1,5 +1,5 @@
 <?php
 return [
     "engine"=>"stencil",
-    "path"=>resourcesDirectory() . "/views"
+    "path"=>resourcesDirectory() . "/assets/views/compiled"
 ];
