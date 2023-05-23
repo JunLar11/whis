@@ -162,13 +162,14 @@ module.exports = {
           ]
       }
     }),
+    /** 
     new CopyWebpackPlugin({
       patterns: [
           { from: 'assets/js/templates', to: 'templates'}
       ]
     }),
     new CreateDirectoryPlugin(path.resolve(__dirname, 'resources', 'views')),
-    
+    **/
     // new HtmlWebpackPlugin({
     //     //Permite trabajar con los archivos HTML
     //     // hash: true,

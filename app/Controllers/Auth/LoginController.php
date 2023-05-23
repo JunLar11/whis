@@ -6,6 +6,7 @@ use App\Models\User;
 use Whis\Cryptic\Hasher;
 use Whis\Http\Controller;
 use Whis\Http\Request;
+use PHLAK\StrGen\Generator as StrGenerator;
 
 class LoginController extends Controller
 {
@@ -13,7 +14,10 @@ class LoginController extends Controller
         if(!isGuest()){
             return redirect('/');
         }
-        return view('auth/login');
+        $generator=new StrGenerator();
+        $token=$generator->alphaNumeric(32);
+        session()->set('_token',$token);
+        return view('auth/login',['token'=>$token]);
     }
     public function store(Request $request, Hasher $hasher){
         $data=$request->validate(['email' => 'required|email', 'password' => 'required']);

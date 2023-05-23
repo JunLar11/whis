@@ -6,6 +6,7 @@ use App\Models\User;
 use Whis\Cryptic\Hasher;
 use Whis\Http\Controller;
 use Whis\Http\Request;
+use PHLAK\StrGen\Generator as StrGenerator;
 
 class RegisterController extends Controller
 {
@@ -26,6 +27,9 @@ class RegisterController extends Controller
         return redirect('/');
     }
     public function create(){
-            return view('auth/register');
+        $generator=new StrGenerator();
+        $token=$generator->alphaNumeric(32);
+        session()->set('_token',$token);
+        return view('auth/register',['token'=>$token]);
     }
 }
