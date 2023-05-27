@@ -6,4 +6,5 @@ package-lock.json
 /resources/views
 /resources/assets/
 /assets/views/compiled
+.env
 ```
