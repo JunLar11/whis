@@ -3,4 +3,7 @@ composer.lock
 /logs/
 /node_modules/
 package-lock.json
+/resources/views
+/resources/assets/
+/assets/views/compiled
 ```
