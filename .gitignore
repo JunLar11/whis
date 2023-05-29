@@ -7,4 +7,5 @@ package-lock.json
 /resources/assets/
 /assets/views/compiled
 .env
+/.VSCodeCounter
 ```
