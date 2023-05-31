@@ -168,8 +168,9 @@ module.exports = {
           { from: 'assets/js/templates', to: 'templates'}
       ]
     }),
-    new CreateDirectoryPlugin(path.resolve(__dirname, 'resources', 'views')),
+    
     **/
+    new CreateDirectoryPlugin(path.resolve(__dirname, 'resources', 'views')),
     // new HtmlWebpackPlugin({
     //     //Permite trabajar con los archivos HTML
     //     // hash: true,

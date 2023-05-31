@@ -15,6 +15,6 @@
         }
     ],
     "require": {
-        "junlar11/whis-core": "^0.1.835"
+        "junlar11/whis-core": "^0.1.85"
     }
 }

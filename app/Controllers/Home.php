@@ -19,7 +19,7 @@ class Home extends Controller
         $request->validate(['files' => 'required']);
         $files=$request->file('files',["type"=>"filetype:png/jpeg/jpg/pdf","size"=>"filesize:1000000"]);
         foreach ($files as $file) {
-            $file->store('uploads','test');
+            $file->store();
         }
         return redirect('/');
     }
