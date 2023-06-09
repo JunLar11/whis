@@ -187,7 +187,7 @@ module.exports = {
           inject:(htmlFile.includes('layouts') ? true : false),
           template: htmlFile,
           filename: ("../../"+ htmlFile.replace('assets\\views\\', 'assets/views/compiled/')),
-          publicPath: '',
+          publicPath: '@url',
         });
       }else{
         return new Noop();
