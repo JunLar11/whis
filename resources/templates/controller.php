@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Controllers\extraDirectories;
 
 use Whis\Http\Controller;
 class ControllerName extends Controller

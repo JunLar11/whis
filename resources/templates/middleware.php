@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Middlewares;
+namespace App\Middlewares\extraDirectories;
 use Whis\Http\Middleware;
 use Whis\Http\Request;
 use Whis\Http\Response;
