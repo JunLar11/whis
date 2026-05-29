@@ -1,26 +1,47 @@
-# Remove the question mark from the request but maintain the query 
-# Comment this line in production
-RewriteEngine On
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
 
-# Uncomment the following line if your public folder isn't the web server's root
-# RewriteBase /
+    # =========================
+    # OCULTAR ARCHIVOS SENSIBLES COMO 404
+    # =========================
+    RewriteRule ^\.env$ - [R=404,L,NC]
+    RewriteRule ^\.git - [R=404,L,NC]
+    RewriteRule ^\.gitignore$ - [R=404,L,NC]
+    RewriteRule ^composer\.(json|lock)$ - [R=404,L,NC]
+    RewriteRule ^package(-lock)?\.json$ - [R=404,L,NC]
+    RewriteRule ^webpack\.config\.js$ - [R=404,L,NC]
+    RewriteRule ^phpunit\.xml$ - [R=404,L,NC]
+    RewriteRule ^.*\.code-workspace$ - [R=404,L,NC]
+    RewriteRule ^.*\.(log|sql|yml|yaml|ini|sh|bat)$ - [R=404,L,NC]
 
-# Comment this lines in production
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME} !-l
-RewriteRule ^(.*)$ index.php?$1 [L,QSA]
+    # =========================
+    # OCULTAR CARPETAS INTERNAS COMO 404
+    # =========================
+    RewriteRule ^(app|config|Database|logs|node_modules|resources|routes|vendor)(/.*)?$ - [R=404,L,NC]
 
-# Uncomment the following lines in production
-# <IfModule mod_rewrite.c>
-# RewriteEngine On
-# RewriteBase /
-# RewriteCond %{REQUEST_URI} !/public
-# RewriteRule ^(.*)$ public/$1
-# </IfModule>
+    # =========================
+    # PERMITIR ARCHIVOS SEO
+    # =========================
+    RewriteRule ^(robots\.txt|sitemap\.xml)$ public/$1 [L]
 
-<IfModule mod_deflate.c> 
-    SetOutputFilter DEFLATE
-    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
-    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png)$ no-gzip dont-vary 
+    # =========================
+    # YA ESTÁ EN /public -> NO REESCRIBIR
+    # =========================
+    RewriteCond %{REQUEST_URI} ^/public/ [NC]
+    RewriteRule ^ - [L]
+
+    # =========================
+    # ENVIAR TODO LO DEMÁS A /public
+    # =========================
+    RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
+
+<IfModule mod_deflate.c>
+    SetOutputFilter DEFLATE
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|webp|svg|mp4|woff2?)$ no-gzip dont-vary
+</IfModule>
+
+# Opcional: página 404 genérica
+ErrorDocument 404 http://localhost/error404

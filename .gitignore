@@ -7,5 +7,6 @@ package-lock.json
 /resources/assets/
 /assets/views/compiled
 .env
+future-updates.md
 /.VSCodeCounter
 ```
