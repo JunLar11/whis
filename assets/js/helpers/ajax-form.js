@@ -7,6 +7,38 @@ const FIELD_SELECTOR = `
 `;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+const CONTAINS_EMAIL_REGEX =
+  /[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+/i;
+
+/**
+ * Detecta:
+ * - https://dominio.com
+ * - http://dominio.com
+ * - ftp://dominio.com
+ * - www.dominio.com
+ * - dominio.com
+ * - wa.me
+ * - t.me
+ * - dominio.construction
+ *
+ * Nota: detecta dominios con TLD de 2 a 63 caracteres.
+ */
+const LINK_REGEX =
+  /\b(?:https?|ftp):\/\/[^\s<>"']+|\bwww\.[^\s<>"']+|\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:\/[^\s<>"']*)?/gi;
+
+/**
+ * Detecta teléfonos internacionales razonables:
+ * - 4421234567
+ * - 442 123 4567
+ * - +52 442 123 4567
+ * - 52 442 123 4567
+ * - +1 (555) 123-4567
+ * - +34 612 345 678
+ * - 0044 7700 900123
+ *
+ * Usa rango internacional: 8 a 15 dígitos.
+ */
+const PHONE_CANDIDATE_REGEX = /(?:\+|00)?(?:\s*\(?\d{1,4}\)?[\s().-]*){2,}\d/gu;
 const DEFAULT_OPTIONS = {
   selector: DEFAULT_SELECTOR,
   validation: "html",
@@ -41,6 +73,16 @@ const DEFAULT_OPTIONS = {
     rangeOverflow: "{Label} debe ser menor o igual a {max}.",
     match: "{Label} no coincide.",
     invalid: "{Label} no es válido.",
+    minFiles: "{Label} requiere mínimo {minFiles} archivo(s).",
+    maxFiles: "{Label} permite máximo {maxFiles} archivo(s).",
+    fileSize:
+      "{fileName} excede el tamaño máximo permitido de {maxFileSizeFormatted}.",
+    fileTotalSize:
+      "El peso total de {label} excede el máximo permitido de {maxTotalSizeFormatted}.",
+    fileType: "{fileName} tiene un tipo de archivo no permitido.",
+    noLinks: "{Label} no debe contener enlaces.",
+    noPhones: "{Label} no debe contener números de teléfono.",
+    noEmails: "{Label} no debe contener correos electrónicos.",
   },
 };
 
@@ -78,6 +120,9 @@ const DEFAULT_VALIDATION_PROFILES = {
       rangeOverflow: "{Label} debe ser menor o igual a {max}.",
       match: "{Label} no coincide.",
       invalid: "{Label} no es válido.",
+      noLinks: "{Label} no debe contener enlaces.",
+      noPhones: "{Label} no debe contener números de teléfono.",
+      noEmails: "{Label} no debe contener correos electrónicos.",
     },
 
     fields: {
@@ -87,6 +132,10 @@ const DEFAULT_VALIDATION_PROFILES = {
         maxLength: 120,
         label: "nombre o empresa",
         normalize: "spaces",
+
+        noLinks: true,
+        noPhones: true,
+        noEmails: true,
       },
       email: {
         required: true,
@@ -101,6 +150,10 @@ const DEFAULT_VALIDATION_PROFILES = {
         maxLength: 3000,
         label: "mensaje",
         normalize: "trim",
+
+        noLinks: true,
+        noPhones: true,
+        noEmails: true,
       },
     },
   },
@@ -205,6 +258,7 @@ export function initAjaxForm(formOrSelector, options = {}) {
   const state = createState(form, config);
 
   bindFieldEvents(state);
+  bindCharacterCounters(state);
 
   form.addEventListener("submit", (event) => {
     handleSubmit(event, state);
@@ -314,6 +368,7 @@ function getFormOptions(form, config) {
     successMessage: dataset.successMessage || "",
 
     errorMessage: dataset.errorMessage || "",
+    characterCounter: readBoolean(dataset.characterCounter, true),
   };
 }
 
@@ -369,6 +424,182 @@ function bindFieldEvents(state) {
   });
 }
 
+function bindCharacterCounters(state) {
+  if (!state.options.characterCounter) return;
+
+  state.fields.forEach((field) => {
+    if (shouldIgnoreField(field, state) || !supportsCharacterCounter(field)) {
+      return;
+    }
+
+    const rules = getFieldRules(field, state);
+    const minLength = getLengthLimit(
+      rules.minLength ?? field.getAttribute("minlength"),
+    );
+    const maxLength = getLengthLimit(
+      rules.maxLength ?? field.getAttribute("maxlength"),
+    );
+
+    const counterEnabled = readBoolean(field.dataset.characterCounter, true);
+
+    if (!counterEnabled || (!minLength && !maxLength)) return;
+
+    const group = findFieldGroup(field, state.form);
+    const counter = findOrCreateCharacterCounter(field, state.form, group);
+
+    if (!counter) return;
+
+    const update = () =>
+      updateCharacterCounter(field, state, counter, {
+        minLength,
+        maxLength,
+      });
+
+    field.addEventListener("input", update);
+    field.addEventListener("change", update);
+
+    update();
+  });
+}
+
+function supportsCharacterCounter(field) {
+  if (field.tagName === "TEXTAREA") return true;
+  if (field.tagName !== "INPUT") return false;
+
+  const type = String(field.type || "text").toLowerCase();
+
+  return ["text", "search", "email", "tel", "url", "password"].includes(type);
+}
+
+function getLengthLimit(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number <= 0) return 0;
+
+  return Math.trunc(number);
+}
+
+function findOrCreateCharacterCounter(field, form, group) {
+  const candidates = getFieldNameCandidates(field.name);
+
+  for (const name of candidates) {
+    const counter =
+      group?.querySelector(
+        `[data-character-counter-for="${escapeAttribute(name)}"]`,
+      ) ||
+      form.querySelector(
+        `[data-character-counter-for="${escapeAttribute(name)}"]`,
+      );
+
+    if (counter) return counter;
+  }
+
+  group?.classList.add("has-character-counter");
+
+  if (field.tagName === "TEXTAREA") {
+    group?.classList.add("has-character-counter--textarea");
+  }
+
+  const counter = document.createElement("span");
+  const normalizedName = normalizeFieldName(field.name || field.id || "campo");
+  const safeName = normalizedName.replace(/[^a-zA-Z0-9_-]/g, "-") || "campo";
+
+  counter.className = "form-group__counter";
+  counter.dataset.characterCounter = "true";
+  counter.dataset.characterCounterFor = normalizedName;
+  counter.id = field.id ? `${field.id}-counter` : `counter-${safeName}`;
+  counter.setAttribute("aria-live", "polite");
+
+  group?.appendChild(counter);
+
+  const describedBy = new Set(
+    String(field.getAttribute("aria-describedby") || "")
+      .split(/\s+/)
+      .filter(Boolean),
+  );
+
+  describedBy.add(counter.id);
+  field.setAttribute("aria-describedby", Array.from(describedBy).join(" "));
+
+  return counter;
+}
+
+function updateCharacterCounter(field, state, counter, limits = {}) {
+  const rules = getFieldRules(field, state);
+  const value = normalizeValue(getFieldValue(field, state.form), rules);
+  const currentLength = typeof value === "string" ? value.length : 0;
+  const minLength = Number(limits.minLength || 0);
+  const maxLength = Number(limits.maxLength || 0);
+
+  counter.classList.remove(
+    "is-empty",
+    "is-under-min",
+    "is-near-limit",
+    "is-over-limit",
+    "is-valid-length",
+  );
+
+  counter.textContent = getCharacterCounterText(currentLength, {
+    minLength,
+    maxLength,
+  });
+
+  counter.title = getCharacterCounterTitle(currentLength, {
+    minLength,
+    maxLength,
+  });
+
+  if (currentLength === 0) {
+    counter.classList.add("is-empty");
+  }
+
+  if (minLength && currentLength > 0 && currentLength < minLength) {
+    counter.classList.add("is-under-min");
+  }
+
+  if (maxLength && currentLength > maxLength) {
+    counter.classList.add("is-over-limit");
+  } else if (maxLength && currentLength >= Math.floor(maxLength * 0.9)) {
+    counter.classList.add("is-near-limit");
+  }
+
+  if (
+    (!minLength || currentLength >= minLength) &&
+    (!maxLength || currentLength <= maxLength) &&
+    currentLength > 0
+  ) {
+    counter.classList.add("is-valid-length");
+  }
+}
+function getCharacterCounterText(currentLength, limits = {}) {
+  const maxLength = Number(limits.maxLength || 0);
+
+  if (maxLength) {
+    return `${currentLength}/${maxLength}`;
+  }
+
+  return String(currentLength);
+}
+function getCharacterCounterTitle(currentLength, limits = {}) {
+  const minLength = Number(limits.minLength || 0);
+  const maxLength = Number(limits.maxLength || 0);
+  const label = currentLength === 1 ? "carácter" : "caracteres";
+
+  if (minLength && maxLength) {
+    return `${currentLength} ${label}. Mínimo ${minLength}, máximo ${maxLength}.`;
+  }
+
+  if (maxLength) {
+    return `${currentLength} ${label}. Máximo ${maxLength}.`;
+  }
+
+  if (minLength) {
+    return `${currentLength} ${label}. Mínimo ${minLength}.`;
+  }
+
+  return `${currentLength} ${label}.`;
+}
+
 async function handleSubmit(event, state) {
   event.preventDefault();
 
@@ -394,9 +625,12 @@ async function handleSubmit(event, state) {
 
     const parsedResponse = await parseResponse(response);
 
-    if (response.redirected && !parsedResponse.isJson) {
-      window.location.href = response.url;
-      return;
+    if (!parsedResponse.isJson) {
+      throw new Error(
+        response.redirected
+          ? "El servidor redirigió la petición. Revisa CSRF, validación del archivo o límites de subida de PHP."
+          : getMessage(state, "invalidServerResponse"),
+      );
     }
 
     const data = parsedResponse.data;
@@ -404,10 +638,15 @@ async function handleSubmit(event, state) {
     updateCsrfTokenIfPresent(state, data, response);
 
     if (!response.ok || data?.ok === false) {
-      applyServerErrors(state, data?.errors);
+      const serverMessages = applyServerErrors(state, data?.errors);
 
-      const message =
-        data?.error || data?.message || getMessage(state, "genericError");
+      const hasFieldErrors = serverMessages.length > 0;
+
+      const messageParts = hasFieldErrors
+        ? [getMessage(state, "invalidForm"), ...serverMessages]
+        : [data?.error, data?.message, getMessage(state, "genericError")];
+
+      const message = uniqueMessages(messageParts).join("\n");
 
       throw new Error(message);
     }
@@ -435,7 +674,7 @@ async function handleSubmit(event, state) {
     );
 
     if (state.options.resetOnSuccess) {
-      state.form.reset();
+      resetFormFields(state);
       resetValidationStyles(state);
     }
   } catch (error) {
@@ -533,6 +772,18 @@ function validateField(field, state) {
 
     return false;
   }
+  const forbiddenTextMessage = validateForbiddenTextContent(
+    normalizedValue,
+    field,
+    state,
+    rules,
+    label,
+  );
+
+  if (forbiddenTextMessage) {
+    setFieldState(field, state, false, forbiddenTextMessage);
+    return false;
+  }
 
   if (
     typeof normalizedValue === "string" &&
@@ -611,6 +862,24 @@ function validateField(field, state) {
     }
   }
 
+  if (normalizedValue instanceof FileList) {
+    const fileValidationMessage = validateFileField(
+      normalizedValue,
+      field,
+      state,
+      rules,
+      label,
+    );
+
+    if (fileValidationMessage) {
+      setFieldState(field, state, false, fileValidationMessage);
+      return false;
+    }
+
+    setFieldState(field, state, true);
+    return true;
+  }
+
   if (rules.match) {
     const otherField = state.form.querySelector(
       `[name="${escapeAttribute(rules.match)}"]`,
@@ -654,7 +923,10 @@ function getValidationProfile(state) {
 
 function getFieldRules(field, state) {
   const profile = getValidationProfile(state);
-  const profileRules = profile.fields?.[field.name] || {};
+  const normalizedName = normalizeFieldName(field.name);
+
+  const profileRules =
+    profile.fields?.[field.name] || profile.fields?.[normalizedName] || {};
 
   return {
     ...profileRules,
@@ -697,8 +969,89 @@ function getRulesFromDataset(field) {
   if (dataset.normalize) {
     rules.normalize = dataset.normalize;
   }
+  if (dataset.noLinks !== undefined) {
+    rules.noLinks = readBoolean(dataset.noLinks, false);
+  }
 
+  if (dataset.noPhones !== undefined) {
+    rules.noPhones = readBoolean(dataset.noPhones, false);
+  }
+
+  if (dataset.noEmails !== undefined) {
+    rules.noEmails = readBoolean(dataset.noEmails, false);
+  }
+
+  if (dataset.minFiles) {
+    rules.minFiles = Number(dataset.minFiles);
+  }
+
+  if (dataset.maxFiles) {
+    rules.maxFiles = Number(dataset.maxFiles);
+  }
+
+  if (dataset.maxFileSize) {
+    rules.maxFileSize = parseFileSize(dataset.maxFileSize);
+  }
+
+  if (dataset.maxTotalSize) {
+    rules.maxTotalSize = parseFileSize(dataset.maxTotalSize);
+  }
+
+  if (dataset.fileTypes) {
+    rules.fileTypes = dataset.fileTypes
+      .split(",")
+      .map((type) => type.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  if (field.getAttribute("accept")) {
+    rules.accept = field
+      .getAttribute("accept")
+      .split(",")
+      .map((type) => type.trim().toLowerCase())
+      .filter(Boolean);
+  }
   return rules;
+}
+
+function parseFileSize(value) {
+  if (typeof value === "number") return value;
+
+  const text = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (!text) return 0;
+
+  const match = text.match(/^(\d+(?:\.\d+)?)(\s*)(b|kb|k|mb|m|gb|g)?$/i);
+
+  if (!match) {
+    const numeric = Number(text);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  const number = Number(match[1]);
+  const unit = match[3] || "b";
+
+  if (!Number.isFinite(number)) return 0;
+
+  switch (unit) {
+    case "g":
+    case "gb":
+      return Math.round(number * 1024 * 1024 * 1024);
+
+    case "m":
+    case "mb":
+      return Math.round(number * 1024 * 1024);
+
+    case "k":
+    case "kb":
+      return Math.round(number * 1024);
+
+    case "b":
+    default:
+      return Math.round(number);
+  }
 }
 
 function getNativeValidationMessage(field, label, state) {
@@ -1108,19 +1461,25 @@ async function parseResponse(response) {
 
   return {
     isJson: false,
+    text,
     data: {
-      ok: response.ok,
-      message: text,
+      ok: false,
+      error: text || "La respuesta del servidor no fue JSON.",
     },
   };
 }
 
 function applyServerErrors(state, errors) {
-  if (!errors || typeof errors !== "object") return;
+  if (!errors || typeof errors !== "object") return [];
 
   const normalizedErrors = normalizeServerErrors(errors);
+  const allMessages = [];
 
   Object.entries(normalizedErrors).forEach(([fieldName, message]) => {
+    if (message) {
+      allMessages.push(message);
+    }
+
     const field = findFieldByName(state.form, fieldName);
 
     if (!field) return;
@@ -1129,26 +1488,40 @@ function applyServerErrors(state, errors) {
   });
 
   focusFirstInvalidField(state);
+
+  return allMessages;
 }
 
 function normalizeServerErrors(errors) {
   const normalized = {};
 
-  Object.entries(errors).forEach(([field, value]) => {
-    if (Array.isArray(value)) {
-      normalized[field] = String(value[0] || "");
-      return;
-    }
-
-    if (value && typeof value === "object") {
-      normalized[field] = String(Object.values(value)[0] || "");
-      return;
-    }
-
-    normalized[field] = String(value || "");
+  Object.entries(errors || {}).forEach(([field, value]) => {
+    normalized[field] = flattenErrorMessages(value).join("\n");
   });
 
   return normalized;
+}
+
+function flattenErrorMessages(value) {
+  if (value === null || value === undefined || value === "") {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => flattenErrorMessages(item)).filter(Boolean);
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value)
+      .flatMap((item) => flattenErrorMessages(item))
+      .filter(Boolean);
+  }
+
+  return [String(value)];
 }
 
 function setFieldState(field, state, isValid, message = "") {
@@ -1159,16 +1532,22 @@ function setFieldState(field, state, isValid, message = "") {
 
   field.removeAttribute("aria-invalid");
 
-  if (errorBox) {
-    errorBox.textContent = "";
-  }
+  if (errorBox.id) {
+    const describedBy = new Set(
+      String(field.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter(Boolean),
+    );
 
-  if (isValid) {
-    if (!isEmptyValue(getFieldValue(field, state.form))) {
-      group?.classList.add("has-success");
+    const counter = findCharacterCounter(field, state.form, group);
+
+    describedBy.add(errorBox.id);
+
+    if (counter?.id) {
+      describedBy.add(counter.id);
     }
 
-    return;
+    field.setAttribute("aria-describedby", Array.from(describedBy).join(" "));
   }
 
   group?.classList.add("has-error");
@@ -1177,7 +1556,7 @@ function setFieldState(field, state, isValid, message = "") {
   if (errorBox) {
     errorBox.textContent = message;
 
-    if (errorBox.id) {
+    if (errorBox?.id) {
       field.setAttribute("aria-describedby", errorBox.id);
     }
   }
@@ -1193,6 +1572,39 @@ function clearFieldState(field, state) {
   if (errorBox) {
     errorBox.textContent = "";
   }
+
+  const counter = findCharacterCounter(field, state.form, group);
+
+  if (counter) {
+    const rules = getFieldRules(field, state);
+
+    updateCharacterCounter(field, state, counter, {
+      minLength: getLengthLimit(
+        rules.minLength ?? field.getAttribute("minlength"),
+      ),
+      maxLength: getLengthLimit(
+        rules.maxLength ?? field.getAttribute("maxlength"),
+      ),
+    });
+  }
+}
+
+function findCharacterCounter(field, form, group) {
+  const candidates = getFieldNameCandidates(field.name);
+
+  for (const name of candidates) {
+    const counter =
+      group?.querySelector(
+        `[data-character-counter-for="${escapeAttribute(name)}"]`,
+      ) ||
+      form.querySelector(
+        `[data-character-counter-for="${escapeAttribute(name)}"]`,
+      );
+
+    if (counter) return counter;
+  }
+
+  return group?.querySelector(".form-group__counter") || null;
 }
 
 function resetValidationStyles(state) {
@@ -1205,7 +1617,7 @@ function resetValidationStyles(state) {
 }
 
 function resetFormState(state) {
-  state.form.reset();
+  resetFormFields(state);
   clearStatus(state);
   resetValidationStyles(state);
   setLoadingState(state, false);
@@ -1223,18 +1635,43 @@ function findFieldGroup(field, form) {
 }
 
 function findErrorBox(field, form, group) {
+  const candidates = getFieldNameCandidates(field.name);
+
+  for (const name of candidates) {
+    const errorBox =
+      group?.querySelector(`[data-error-for="${escapeAttribute(name)}"]`) ||
+      group?.querySelector(`#error-${cssEscape(name)}`) ||
+      form.querySelector(`[data-error-for="${escapeAttribute(name)}"]`) ||
+      form.querySelector(`#error-${cssEscape(name)}`);
+
+    if (errorBox) return errorBox;
+  }
+
   return (
-    group?.querySelector(`[data-error-for="${escapeAttribute(field.name)}"]`) ||
-    group?.querySelector(`#error-${cssEscape(field.name)}`) ||
     group?.querySelector("[data-field-error]") ||
-    group?.querySelector(".form-group__error") ||
-    form.querySelector(`[data-error-for="${escapeAttribute(field.name)}"]`) ||
-    form.querySelector(`#error-${cssEscape(field.name)}`)
+    group?.querySelector(".form-group__error")
   );
 }
 
 function findFieldByName(form, fieldName) {
-  return form.querySelector(`[name="${escapeAttribute(fieldName)}"]`);
+  const candidates = getFieldNameCandidates(fieldName);
+
+  for (const name of candidates) {
+    const field = form.querySelector(`[name="${escapeAttribute(name)}"]`);
+
+    if (field) return field;
+  }
+
+  return null;
+}
+
+function getFieldNameCandidates(fieldName) {
+  const name = String(fieldName || "");
+  const normalized = normalizeFieldName(name);
+
+  return Array.from(new Set([name, normalized, `${normalized}[]`])).filter(
+    Boolean,
+  );
 }
 
 function findStatusBox(form) {
@@ -1420,4 +1857,426 @@ function getMessageContext(label, extra = {}) {
     Label: capitalize(label),
     ...extra,
   };
+}
+
+function resetFormFields(state) {
+  const form = state.form;
+
+  const csrfField = state.options.csrfField || "_token";
+
+  const preservedValues = preserveResetSafeValues(form, [
+    csrfField,
+    "_csrf_key",
+  ]);
+
+  state.fields.forEach((field) => {
+    if (!field.name || field.disabled) return;
+
+    const type = String(field.type || "").toLowerCase();
+
+    if (field.name === csrfField || field.name === "_csrf_key") {
+      return;
+    }
+
+    if (type === "file") {
+      resetFileInput(field);
+      dispatchResetEvents(field);
+      return;
+    }
+
+    if (type === "checkbox" || type === "radio") {
+      field.checked = field.defaultChecked;
+      dispatchResetEvents(field);
+      return;
+    }
+
+    if (field.tagName === "SELECT") {
+      resetSelectField(field);
+      dispatchResetEvents(field);
+      return;
+    }
+
+    field.value = field.defaultValue || "";
+    dispatchResetEvents(field);
+  });
+
+  restorePreservedValues(form, preservedValues);
+}
+
+function resetFileInput(field) {
+  try {
+    field.value = "";
+  } catch (_) {
+    // Fallback raro para navegadores viejos.
+  }
+
+  if (field.files && field.files.length > 0) {
+    const clone = field.cloneNode(true);
+    clone.value = "";
+    field.replaceWith(clone);
+  }
+}
+
+function resetSelectField(field) {
+  if (field.multiple) {
+    Array.from(field.options).forEach((option) => {
+      option.selected = option.defaultSelected;
+    });
+
+    return;
+  }
+
+  const defaultOption = Array.from(field.options).find(
+    (option) => option.defaultSelected,
+  );
+
+  if (defaultOption) {
+    field.value = defaultOption.value;
+    return;
+  }
+
+  field.selectedIndex = field.options.length ? 0 : -1;
+}
+
+function preserveResetSafeValues(form, names = []) {
+  const values = {};
+
+  names.forEach((name) => {
+    const field = form.querySelector(`[name="${escapeAttribute(name)}"]`);
+
+    if (field) {
+      values[name] = field.value;
+    }
+  });
+
+  return values;
+}
+
+function restorePreservedValues(form, values = {}) {
+  Object.entries(values).forEach(([name, value]) => {
+    const field = form.querySelector(`[name="${escapeAttribute(name)}"]`);
+
+    if (field) {
+      field.value = value;
+      field.defaultValue = value;
+    }
+  });
+}
+
+function dispatchResetEvents(field) {
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+}
+function validateFileField(files, field, state, rules, label) {
+  const fileArray = Array.from(files || []);
+  const errors = [];
+
+  const fileCount = fileArray.length;
+
+  if (rules.minFiles !== undefined && fileCount < Number(rules.minFiles)) {
+    errors.push(
+      field.dataset.messageMinFiles ||
+        rules.messageMinFiles ||
+        getMessage(
+          state,
+          "minFiles",
+          `${capitalize(label)} requiere mínimo ${rules.minFiles} archivo(s).`,
+          getMessageContext(label, {
+            minFiles: rules.minFiles,
+          }),
+        ),
+    );
+  }
+
+  if (rules.maxFiles !== undefined && fileCount > Number(rules.maxFiles)) {
+    errors.push(
+      field.dataset.messageMaxFiles ||
+        rules.messageMaxFiles ||
+        getMessage(
+          state,
+          "maxFiles",
+          `${capitalize(label)} permite máximo ${rules.maxFiles} archivo(s).`,
+          getMessageContext(label, {
+            maxFiles: rules.maxFiles,
+          }),
+        ),
+    );
+  }
+
+  if (!fileArray.length) {
+    return uniqueMessages(errors).join("\n");
+  }
+
+  if (rules.maxFileSize) {
+    const maxFileSize = Number(rules.maxFileSize);
+
+    const oversizedFiles = fileArray.filter((file) => file.size > maxFileSize);
+
+    oversizedFiles.forEach((file) => {
+      errors.push(
+        field.dataset.messageFileSize ||
+          rules.messageFileSize ||
+          getMessage(
+            state,
+            "fileSize",
+            `${file.name} excede el tamaño máximo permitido de ${formatBytes(maxFileSize)}.`,
+            getMessageContext(label, {
+              fileName: file.name,
+              fileSize: file.size,
+              maxFileSize,
+              fileSizeFormatted: formatBytes(file.size),
+              maxFileSizeFormatted: formatBytes(maxFileSize),
+            }),
+          ),
+      );
+    });
+  }
+
+  if (rules.maxTotalSize) {
+    const maxTotalSize = Number(rules.maxTotalSize);
+    const totalSize = fileArray.reduce((total, file) => total + file.size, 0);
+
+    if (totalSize > maxTotalSize) {
+      errors.push(
+        field.dataset.messageFileTotalSize ||
+          rules.messageFileTotalSize ||
+          getMessage(
+            state,
+            "fileTotalSize",
+            `El peso total de ${label} excede el máximo permitido de ${formatBytes(maxTotalSize)}.`,
+            getMessageContext(label, {
+              totalSize,
+              maxTotalSize,
+              totalSizeFormatted: formatBytes(totalSize),
+              maxTotalSizeFormatted: formatBytes(maxTotalSize),
+            }),
+          ),
+      );
+    }
+  }
+
+  const allowedTypes = rules.fileTypes || rules.accept || [];
+
+  if (allowedTypes.length) {
+    const invalidFiles = fileArray.filter(
+      (file) => !isAllowedFileType(file, allowedTypes),
+    );
+
+    invalidFiles.forEach((file) => {
+      errors.push(
+        field.dataset.messageFileType ||
+          rules.messageFileType ||
+          getMessage(
+            state,
+            "fileType",
+            `${file.name} tiene un tipo de archivo no permitido.`,
+            getMessageContext(label, {
+              fileName: file.name,
+              fileType: file.type || "",
+            }),
+          ),
+      );
+    });
+  }
+
+  return uniqueMessages(errors).join("\n");
+}
+
+function isAllowedFileType(file, allowedTypes = []) {
+  const fileType = String(file.type || "").toLowerCase();
+  const fileName = String(file.name || "").toLowerCase();
+
+  return allowedTypes.some((allowed) => {
+    const rule = String(allowed || "").toLowerCase();
+
+    if (!rule) return false;
+
+    if (rule.startsWith(".")) {
+      return fileName.endsWith(rule);
+    }
+
+    if (rule.endsWith("/*")) {
+      const group = rule.replace("/*", "");
+      return fileType.startsWith(`${group}/`);
+    }
+
+    return fileType === rule;
+  });
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(2)} KB`;
+  if (value < 1024 * 1024 * 1024) {
+    return `${(value / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function validateForbiddenTextContent(value, field, state, rules, label) {
+  if (!shouldValidateForbiddenTextContent(value, field, rules)) {
+    return "";
+  }
+
+  const text = String(value || "");
+
+  if (rules.noLinks && containsLink(text)) {
+    return (
+      field.dataset.messageNoLinks ||
+      rules.messageNoLinks ||
+      getMessage(
+        state,
+        "noLinks",
+        `${capitalize(label)} no debe contener enlaces.`,
+        getMessageContext(label),
+      )
+    );
+  }
+
+  if (rules.noPhones && containsPhoneNumber(text)) {
+    return (
+      field.dataset.messageNoPhones ||
+      rules.messageNoPhones ||
+      getMessage(
+        state,
+        "noPhones",
+        `${capitalize(label)} no debe contener números de teléfono.`,
+        getMessageContext(label),
+      )
+    );
+  }
+
+  if (rules.noEmails && containsEmail(text)) {
+    return (
+      field.dataset.messageNoEmails ||
+      rules.messageNoEmails ||
+      getMessage(
+        state,
+        "noEmails",
+        `${capitalize(label)} no debe contener correos electrónicos.`,
+        getMessageContext(label),
+      )
+    );
+  }
+
+  return "";
+}
+
+function shouldValidateForbiddenTextContent(value, field, rules = {}) {
+  if (typeof value !== "string") return false;
+  if (isEmptyValue(value)) return false;
+
+  if (!rules.noLinks && !rules.noPhones && !rules.noEmails) {
+    return false;
+  }
+
+  return isTextInputOrTextarea(field);
+}
+
+function isTextInputOrTextarea(field) {
+  if (field.tagName === "TEXTAREA") return true;
+  if (field.tagName !== "INPUT") return false;
+
+  const type = String(field.type || "text").toLowerCase();
+
+  return ["text", "search", "password"].includes(type);
+}
+
+function containsEmail(value) {
+  return CONTAINS_EMAIL_REGEX.test(String(value || ""));
+}
+
+function containsLink(value) {
+  const text = String(value || "");
+
+  LINK_REGEX.lastIndex = 0;
+
+  let match;
+
+  while ((match = LINK_REGEX.exec(text)) !== null) {
+    const detected = match[0] || "";
+    const start = match.index;
+    const before = text[start - 1] || "";
+    const after = text[start + detected.length] || "";
+
+    /**
+     * Evita que "correo@dominio.com" sea detectado como link
+     * cuando solo se quiere validar enlaces.
+     */
+    if (before === "@" || after === "@") {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+function containsPhoneNumber(value) {
+  const text = String(value || "");
+
+  PHONE_CANDIDATE_REGEX.lastIndex = 0;
+
+  let match;
+
+  while ((match = PHONE_CANDIDATE_REGEX.exec(text)) !== null) {
+    const candidate = match[0] || "";
+
+    if (isProbablyPhoneNumber(candidate)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isProbablyPhoneNumber(candidate) {
+  const text = String(candidate || "").trim();
+  const digits = text.replace(/\D/g, "");
+
+  /**
+   * Teléfonos internacionales: normalmente 8 a 15 dígitos.
+   * E.164 permite hasta 15 dígitos, pero aquí permitimos también
+   * formatos locales razonables de 8+ dígitos.
+   */
+  if (digits.length < 8 || digits.length > 15) {
+    return false;
+  }
+
+  /**
+   * Evita detectar fechas simples como:
+   * 2026-06-17
+   * 17-06-2026
+   * 17.06.2026
+   */
+  if (/^\d{1,4}[-.]\d{1,2}[-.]\d{1,4}$/.test(text)) {
+    return false;
+  }
+
+  /**
+   * Evita falsos positivos muy obvios como:
+   * 00000000
+   * 1111111111
+   */
+  if (/^(\d)\1+$/.test(digits)) {
+    return false;
+  }
+
+  return true;
+}
+
+function normalizeFieldName(name) {
+  return String(name || "").replace(/\[\]$/, "");
+}
+
+function uniqueMessages(messages = []) {
+  return Array.from(
+    new Set(
+      messages.map((message) => String(message || "").trim()).filter(Boolean),
+    ),
+  );
 }

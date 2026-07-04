@@ -1,13 +1,20 @@
 import "../sass/app.scss";
-import { bootstrapWhisDefaults } from "./framework-defaults";
+import { bootstrapWhisDefaults } from "./helpers/framework-defaults";
 
 export {
   WHIS_DEFAULT_OPTIONS,
   defineWhisDefaults,
   getWhisDefaults,
+  resetWhisDefaults,
+  createWhisConfig,
   initWhisDefaults,
   bootstrapWhisDefaults,
-} from "./framework-defaults";
+  getWhisInstance,
+  refreshWhisDefaults,
+  destroyWhisDefaults,
+} from "./helpers/framework-defaults";
+
+bootstrapWhisDefaults();
 
 /**
  * Inicialización default del framework.

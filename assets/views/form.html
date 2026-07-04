@@ -14,6 +14,10 @@
       data-csrf="true"
       data-csrf-field="_token"
       data-reset-on-success="false"
+      data-loading-text="Enviando..."
+      data-success-message="Formulario enviado correctamente."
+      data-error-message="No se pudo enviar el formulario."
+      data-character-counter="true"
       novalidate
       aria-labelledby="test-form-legend"
     >
@@ -42,6 +46,10 @@
             inputmode="email"
             required
             maxlength="150"
+            data-required="true"
+            data-type="email"
+            data-label="correo electrónico"
+            data-normalize="trim"
             aria-describedby="error-test-email"
           >
           <label class="form-label" for="test-email">Email</label>
@@ -67,6 +75,14 @@
             required
             minlength="3"
             maxlength="120"
+            data-required="true"
+            data-min-length="3"
+            data-max-length="120"
+            data-label="nombre"
+            data-normalize="spaces"
+            data-no-links="true"
+            data-no-phones="true"
+            data-no-emails="true"
             aria-describedby="error-test-name"
           >
           <label class="form-label" for="test-name">Name</label>
@@ -89,6 +105,12 @@
             type="file"
             class="form-control"
             multiple
+            accept=".jpg,.jpeg,.png,.webp,.pdf"
+            data-label="archivos"
+            data-min-files="1"
+            data-max-files="5"
+            data-max-file-size="5mb"
+            data-max-total-size="20mb"
             aria-describedby="error-test-files"
           >
 

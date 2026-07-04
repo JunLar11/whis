@@ -8,7 +8,8 @@
       "App\\": "./app"
     },
     "files": [
-      "vendor/junlar11/whis-core/src/Helpers/csrf.php"
+      "vendor/junlar11/whis-core/src/Helpers/csrf.php",
+      "vendor/junlar11/whis-core/src/Helpers/routes.php"
     ]
   },
   "authors": [
@@ -18,6 +19,6 @@
     }
   ],
   "require": {
-    "junlar11/whis-core": "0.2.0"
+    "junlar11/whis-core": "0.2.1"
   }
 }

@@ -13,6 +13,10 @@
       data-csrf="true"
       data-csrf-field="_token"
       data-reset-on-success="false"
+      data-loading-text="Iniciando sesión..."
+      data-success-message="Sesión iniciada correctamente."
+      data-error-message="No se pudo iniciar sesión."
+      data-character-counter="false"
       novalidate
       aria-labelledby="login-form-legend"
     >
@@ -40,6 +44,11 @@
             autocomplete="email"
             inputmode="email"
             required
+            maxlength="150"
+            data-required="true"
+            data-type="email"
+            data-label="correo electrónico"
+            data-normalize="trim"
             aria-describedby="error-login-email"
           >
 
@@ -63,6 +72,9 @@
             placeholder=" "
             autocomplete="current-password"
             required
+            data-required="true"
+            data-label="contraseña"
+            data-normalize="none"
             aria-describedby="error-login-password"
           >
 

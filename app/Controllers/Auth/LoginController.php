@@ -10,56 +10,68 @@ use Whis\Http\Response;
 
 class LoginController extends Controller
 {
-    public function create()
+    public function create(): Response
     {
         if (! isGuest()) {
             return redirect('/');
         }
 
         /*
-         * Ya no necesitas generar manualmente el token aquí
-         * si estás usando @csrf o @csrf('login') y tu middleware CSRF.
+         * El token CSRF lo genera la vista con:
+         *
+         * @csrf('login')
+         *
+         * Y lo valida el middleware CSRF antes de llegar a store().
          */
-        return view('auth/login');
+        return view('auth/login', 'Login');
     }
 
-    public function store(Request $request, Hasher $hasher)
+    public function store(Request $request, Hasher $hasher): Response
     {
         /*
-         * Se conserva validate().
-         * El CSRF lo debe validar el middleware antes de llegar aquí.
+         * No uso $request->validate() aquí porque, dependiendo del Validator,
+         * puede intentar regresar con back()->withErrors() antes de que podamos
+         * responder en JSON.
+         *
+         * Para AJAX-JSON conviene controlar la respuesta con:
+         * $this->validationError($request, ...)
          */
-        $data = $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required',
-        ]);
+        $errors = $this->validateLoginInput($request);
 
-        $user = User::firstWhere('email', $data['email']);
+        if (! empty($errors)) {
+            return $this->validationError(
+                $request,
+                $errors,
+                'Revisa tu correo y contraseña.',
+                422
+            );
+        }
 
-        if (is_null($user) || ! $hasher->verify($data['password'], $user->password)) {
-            if ($this->expectsJson()) {
-                return Response::json([
-                    'ok' => false,
-                    'error' => "Credentials don't match",
-                    'errors' => [
-                        'email' => "Credentials don't match",
+        $email = trim((string) $request->data('email'));
+        $password = (string) $request->data('password');
+
+        $user = User::firstWhere('email', $email);
+
+        if (
+            is_null($user)
+            || ! $hasher->verify($password, (string) $user->password)
+        ) {
+            return $this->validationError(
+                $request,
+                [
+                    'email' => [
+                        'El correo o la contraseña no son correctos.',
                     ],
-                ])->setStatus(422);
-            }
-
-            return back()->withErrors([
-                'email' => [
-                    'email' => "Credentials don't match",
                 ],
-            ]);
+                'No se pudo iniciar sesión.',
+                422
+            );
         }
 
         $user->login();
 
-        if ($this->expectsJson()) {
-            return Response::json([
-                'ok' => true,
-                'message' => 'Sesión iniciada correctamente.',
+        if ($this->expectsJson($request)) {
+            return $this->jsonSuccess('Sesión iniciada correctamente.', [
                 'redirect' => '/',
             ]);
         }
@@ -67,7 +79,7 @@ class LoginController extends Controller
         return redirect('/');
     }
 
-    public function destroy()
+    public function destroy(): Response
     {
         if (isGuest()) {
             return redirect('/');
@@ -78,12 +90,25 @@ class LoginController extends Controller
         return redirect('/');
     }
 
-    private function expectsJson(): bool
+    private function validateLoginInput(Request $request): array
     {
-        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
-        $requestedWith = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+        $errors = [];
 
-        return str_contains($accept, 'application/json')
-            || strtolower($requestedWith) === 'xmlhttprequest';
+        $email = trim((string) ($request->data('email') ?? ''));
+        $password = (string) ($request->data('password') ?? '');
+
+        if ($email === '') {
+            $errors['email'][] = 'El correo electrónico es obligatorio.';
+        } elseif (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'][] = 'Escribe un correo electrónico válido.';
+        } elseif (mb_strlen($email) > 150) {
+            $errors['email'][] = 'El correo electrónico no debe exceder 150 caracteres.';
+        }
+
+        if ($password === '') {
+            $errors['password'][] = 'La contraseña es obligatoria.';
+        }
+
+        return $errors;
     }
 }
