@@ -210,7 +210,6 @@ module.exports = (env, argv) => {
 
     entry: {
       app: "./assets/js/index.js",
-      admin: "./assets/js/admin/index.js",
     },
 
     output: {

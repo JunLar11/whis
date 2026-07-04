@@ -30,6 +30,6 @@ class RegisterController extends Controller
         $generator=new StrGenerator();
         $token=$generator->alphaNumeric(32);
         session()->set('_token',$token);
-        return view('auth/register',['token'=>$token]);
+        return view('auth/register',"Registro",['token'=>$token]);
     }
 }

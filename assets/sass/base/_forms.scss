@@ -144,7 +144,7 @@ form[data-form-default] {
   width: 100%;
   border: 1.5px solid transparent;
   border-radius: $whis-form-field-radius;
-  background-color: darken($color-main-gray, 1);
+  background-color: darken($whis-form-field-bg, 1);
   color: $whis-form-text;
   font-size: 1.7rem;
   outline: none;
@@ -212,8 +212,8 @@ input[type="file"].form-control::file-selector-button {
 .form-group select:focus,
 .form-group textarea:focus,
 .form-control:focus {
-  border-color: darken($color-main-gray, 20);
-  box-shadow: 0 0 0 3px darken($color-main-gray, 10);
+  border-color: darken($whis-form-field-bg, 20);
+  box-shadow: 0 0 0 3px darken($whis-form-field-bg, 10);
   background-color: transparent;
 }
 
@@ -376,7 +376,7 @@ input[type="file"].form-control::file-selector-button {
   padding: 0.9rem 2rem;
   border: none;
   border-radius: 9999px;
-  background-color: darken($color-main-gray, 15);
+  background-color: darken($whis-form-field-bg, 15);
   color: $whis-form-text;
   font-size: 1.6rem;
   font-weight: 700;
@@ -441,7 +441,7 @@ $whis-form-counter-bg: rgba($color-white, 0.7) !default;
 $whis-form-counter-color: rgba($color-dark, 0.52) !default;
 $whis-form-counter-danger-bg: rgba($whis-form-danger, 0.1) !default;
 $whis-form-counter-success-bg: rgba($whis-form-success, 0.08) !default;
-$whis-form-counter-brand-bg: rgba($color-logo-red, 0.1) !default;
+$whis-form-counter-brand-bg: rgba($whis-form-primary, 0.1) !default;
 
 .form-group {
   &.has-character-counter {
@@ -538,7 +538,7 @@ $whis-form-counter-brand-bg: rgba($color-logo-red, 0.1) !default;
 .form-group__counter.is-near-limit,
 .form-group [data-character-counter-for].is-near-limit {
   background-color: $whis-form-counter-brand-bg;
-  color: darken($color-logo-red, 4);
+  color: darken($whis-form-primary, 4);
 }
 
 .form-group__counter.is-over-limit,
